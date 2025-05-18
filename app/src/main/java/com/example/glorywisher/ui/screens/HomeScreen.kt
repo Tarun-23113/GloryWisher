@@ -1,5 +1,7 @@
 package com.example.glorywisher.ui.screens
 
+import android.util.Log
+import android.widget.Toast
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -14,14 +16,43 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import com.example.glorywisher.ui.viewmodels.AuthViewModel
+import com.example.glorywisher.ui.viewmodels.ViewModelFactory
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen(navController: NavController) {
+fun HomeScreen(
+    navController: NavController,
+    viewModel: AuthViewModel = viewModel(
+        factory = ViewModelFactory.create(LocalContext.current)
+    )
+) {
+    val authState by viewModel.authState.collectAsState()
+    val context = LocalContext.current
     var selectedTab by remember { mutableStateOf(0) }
+
+    // Handle authentication state changes
+    LaunchedEffect(authState.isAuthenticated) {
+        if (!authState.isAuthenticated) {
+            Log.d("HomeScreen", "User not authenticated, navigating to login")
+            navController.navigate("login") {
+                popUpTo("home") { inclusive = true }
+            }
+        }
+    }
+
+    // Handle errors
+    LaunchedEffect(authState.error) {
+        authState.error?.let { error ->
+            Log.e("HomeScreen", "Auth error: $error")
+            Toast.makeText(context, error, Toast.LENGTH_LONG).show()
+        }
+    }
     
     Scaffold(
         topBar = {
@@ -38,10 +69,24 @@ fun HomeScreen(navController: NavController) {
                     titleContentColor = MaterialTheme.colorScheme.onPrimary
                 ),
                 actions = {
+                    // Settings button
                     IconButton(onClick = { navController.navigate("settings") }) {
                         Icon(
                             imageVector = Icons.Default.Settings,
                             contentDescription = "Settings",
+                            tint = MaterialTheme.colorScheme.onPrimary
+                        )
+                    }
+                    // Logout button
+                    IconButton(
+                        onClick = {
+                            Log.d("HomeScreen", "Logout button clicked")
+                            viewModel.signOut()
+                        }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Logout,
+                            contentDescription = "Logout",
                             tint = MaterialTheme.colorScheme.onPrimary
                         )
                     }
@@ -70,7 +115,7 @@ fun HomeScreen(navController: NavController) {
             )
 
             Text(
-                "Welcome to Glory Wisher",
+                "Welcome ${authState.user?.email?.split("@")?.first() ?: ""}",
                 style = MaterialTheme.typography.headlineSmall,
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier

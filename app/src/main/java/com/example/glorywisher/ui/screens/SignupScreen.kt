@@ -1,5 +1,6 @@
 package com.example.glorywisher.ui.screens
 
+import android.util.Log
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -25,10 +26,11 @@ fun SignupScreen(
     val authState by viewModel.authState.collectAsState()
     val context = LocalContext.current
 
-    LaunchedEffect(authState.user) {
-        if (authState.user != null) {
+    LaunchedEffect(authState.isAuthenticated) {
+        if (authState.isAuthenticated) {
+            Log.d("SignupScreen", "User authenticated, navigating to home")
             navController.navigate("home") {
-                popUpTo("signup") { inclusive = true }
+                popUpTo("login") { inclusive = true }
             }
         }
     }

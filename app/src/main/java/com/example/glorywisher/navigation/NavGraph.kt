@@ -1,16 +1,30 @@
 package com.example.glorywisher.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.example.glorywisher.ui.screens.*
+import com.example.glorywisher.ui.viewmodels.AuthViewModel
+import com.example.glorywisher.ui.viewmodels.ViewModelFactory
 
 @Composable
 fun NavGraph(navController: NavHostController) {
-    NavHost(navController = navController, startDestination = "login") {
+    val authViewModel: AuthViewModel = viewModel(
+        factory = ViewModelFactory.create(LocalContext.current)
+    )
+    val authState by authViewModel.authState.collectAsState()
+    
+    NavHost(
+        navController = navController,
+        startDestination = if (authState.isAuthenticated) "home" else "login"
+    ) {
         composable("login") {
             LoginScreen(navController)
         }
@@ -18,6 +32,9 @@ fun NavGraph(navController: NavHostController) {
             SignupScreen(navController)
         }
         composable("home") {
+            HomeScreen(navController, authViewModel)
+        }
+        composable("event_list") {
             EventListScreen(navController)
         }
         composable(

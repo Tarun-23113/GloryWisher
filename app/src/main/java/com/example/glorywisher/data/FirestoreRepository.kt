@@ -12,29 +12,110 @@ class FirestoreRepository(private val context: android.content.Context) {
     private val eventsCollection = db.collection("events")
     private val auth = FirebaseAuth.getInstance()
 
+    private fun validateEvent(event: EventData): Boolean {
+        return when {
+            event.title.isBlank() -> {
+                Log.e("Firestore", "Event validation failed: Title is empty")
+                Toast.makeText(context, "Event title cannot be empty", Toast.LENGTH_LONG).show()
+                false
+            }
+            event.date.isBlank() -> {
+                Log.e("Firestore", "Event validation failed: Date is empty")
+                Toast.makeText(context, "Event date cannot be empty", Toast.LENGTH_LONG).show()
+                false
+            }
+            event.recipient.isBlank() -> {
+                Log.e("Firestore", "Event validation failed: Recipient is empty")
+                Toast.makeText(context, "Recipient name cannot be empty", Toast.LENGTH_LONG).show()
+                false
+            }
+            event.eventType.isBlank() -> {
+                Log.e("Firestore", "Event validation failed: Event type is empty")
+                Toast.makeText(context, "Event type cannot be empty", Toast.LENGTH_LONG).show()
+                false
+            }
+            event.userId.isBlank() -> {
+                Log.e("Firestore", "Event validation failed: User ID is empty")
+                Toast.makeText(context, "User ID is required", Toast.LENGTH_LONG).show()
+                false
+            }
+            else -> true
+        }
+    }
+
     suspend fun addEvent(event: EventData) {
-        eventsCollection.document(event.id).set(event).await()
+        try {
+            if (!validateEvent(event)) {
+                throw IllegalArgumentException("Invalid event data")
+            }
+
+            Log.d("Firestore", "Adding event: ${event.title}")
+            val result = eventsCollection.add(event).await()
+            Log.d("Firestore", "Event created successfully with ID: ${result.id}")
+        } catch (e: Exception) {
+            Log.e("Firestore", "Failed to create event", e)
+            Toast.makeText(context, "Error creating event: ${e.message}", Toast.LENGTH_LONG).show()
+            throw e
+        }
     }
 
     suspend fun getEvents(userId: String): List<EventData> {
-        val snapshot = eventsCollection.whereEqualTo("userId", userId).get().await()
-        return snapshot.documents.mapNotNull { it.toObject(EventData::class.java) }
+        return try {
+            Log.d("Firestore", "Fetching events for user: $userId")
+            val snapshot = eventsCollection.whereEqualTo("userId", userId).get().await()
+            val events = snapshot.documents.mapNotNull { it.toObject(EventData::class.java) }
+            Log.d("Firestore", "Successfully fetched ${events.size} events")
+            events
+        } catch (e: Exception) {
+            Log.e("Firestore", "Failed to fetch events", e)
+            Toast.makeText(context, "Error fetching events: ${e.message}", Toast.LENGTH_LONG).show()
+            throw e
+        }
     }
 
     suspend fun updateEvent(event: EventData) {
-        eventsCollection.document(event.id).set(event).await()
+        try {
+            if (!validateEvent(event)) {
+                throw IllegalArgumentException("Invalid event data")
+            }
+
+            Log.d("Firestore", "Updating event: ${event.id}")
+            eventsCollection.document(event.id).set(event).await()
+            Log.d("Firestore", "Event updated successfully")
+        } catch (e: Exception) {
+            Log.e("Firestore", "Failed to update event", e)
+            Toast.makeText(context, "Error updating event: ${e.message}", Toast.LENGTH_LONG).show()
+            throw e
+        }
     }
 
     suspend fun deleteEvent(id: String) {
-        eventsCollection.document(id).delete().await()
+        try {
+            Log.d("Firestore", "Deleting event: $id")
+            eventsCollection.document(id).delete().await()
+            Log.d("Firestore", "Event deleted successfully")
+        } catch (e: Exception) {
+            Log.e("Firestore", "Failed to delete event", e)
+            Toast.makeText(context, "Error deleting event: ${e.message}", Toast.LENGTH_LONG).show()
+            throw e
+        }
     }
 
     suspend fun getEvent(eventId: String): EventData? {
         return try {
+            Log.d("Firestore", "Fetching event: $eventId")
             val document = eventsCollection.document(eventId).get().await()
-            document.toObject(EventData::class.java)
+            val event = document.toObject(EventData::class.java)
+            if (event != null) {
+                Log.d("Firestore", "Successfully fetched event: ${event.title}")
+            } else {
+                Log.w("Firestore", "Event not found: $eventId")
+            }
+            event
         } catch (e: Exception) {
-            null
+            Log.e("Firestore", "Failed to fetch event", e)
+            Toast.makeText(context, "Error fetching event: ${e.message}", Toast.LENGTH_LONG).show()
+            throw e
         }
     }
 

@@ -16,8 +16,6 @@ import androidx.navigation.NavController
 import com.example.glorywisher.data.EventData
 import com.example.glorywisher.ui.viewmodels.EventListViewModel
 import com.example.glorywisher.ui.viewmodels.ViewModelFactory
-import java.text.SimpleDateFormat
-import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

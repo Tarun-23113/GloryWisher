@@ -2,365 +2,297 @@ package com.example.glorywisher.ui.screens
 
 import android.graphics.Bitmap
 import android.content.ContentValues
+import android.content.Intent
 import android.os.Build
 import android.provider.MediaStore
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.*
-import androidx.compose.animation.core.*
+import android.view.View
+import android.widget.Toast
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.FileProvider
-import androidx.navigation.NavController
-import android.content.Intent
-import android.view.View
-import android.widget.Toast
-import androidx.compose.ui.platform.ComposeView
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.glorywisher.ui.viewmodels.FlyerPreviewState
+import com.example.glorywisher.ui.viewmodels.FlyerPreviewViewModel
+import com.example.glorywisher.ui.viewmodels.ViewModelFactory
 import java.io.File
 import java.io.FileOutputStream
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Share
-import androidx.compose.ui.graphics.Shadow
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontWeight
+
+@Composable
+private fun FlyerPreviewContent(flyerState: FlyerPreviewState) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(400.dp)
+            .padding(16.dp)
+            .background(flyerState.backgroundColor)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(
+                text = flyerState.message,
+                color = flyerState.textColor,
+                fontFamily = flyerState.fontFamily,
+                textAlign = TextAlign.Center
+            )
+            if (flyerState.location.isNotBlank()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = flyerState.location,
+                    color = flyerState.textColor,
+                    fontFamily = flyerState.fontFamily,
+                    textAlign = TextAlign.Center
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ColorPicker(
+    selectedColor: Color,
+    onColorSelected: (Color) -> Unit,
+    enabled: Boolean = true
+) {
+    val colors = listOf(
+        Color.White,
+        Color.Black,
+        Color.Red,
+        Color.Green,
+        Color.Blue,
+        Color.Yellow
+    )
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        horizontalArrangement = Arrangement.SpaceEvenly
+    ) {
+        colors.forEach { color ->
+            Box(
+                modifier = Modifier
+                    .size(32.dp)
+                    .background(color)
+                    .padding(2.dp)
+                    .background(
+                        if (color == selectedColor) Color.Gray
+                        else Color.Transparent
+                    )
+                    .clickable(enabled = enabled) { onColorSelected(color) },
+                contentAlignment = Alignment.Center
+            ) {
+                if (color == selectedColor) {
+                    Icon(
+                        Icons.Default.Check,
+                        contentDescription = "Selected",
+                        tint = Color.White
+                    )
+                }
+            }
+        }
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FlyerPreviewScreen(
-    navController: NavController,
-    eventId: String? = null,
-    title: String? = null,
-    date: String? = null,
-    recipient: String? = null,
-    eventType: String? = null
+    eventId: String?,
+    title: String?,
+    date: String?,
+    recipient: String?,
+    eventType: String?,
+    onNavigateBack: () -> Unit,
+    viewModel: FlyerPreviewViewModel = viewModel(
+        factory = ViewModelFactory.create(LocalContext.current)
+    )
 ) {
-    var message by remember { mutableStateOf("Wishing you a wonderful $eventType!") }
-    var location by remember { mutableStateOf("") }
-    var isEditMode by remember { mutableStateOf(true) }
-    var selectedColor by remember { mutableStateOf(Color.White) }
-    var selectedFontFamily by remember { mutableStateOf(FontFamily.Default) }
     val context = LocalContext.current
-    var composeView by remember { mutableStateOf<ComposeView?>(null) }
+    val flyerState by viewModel.flyerState.collectAsState()
+    var showErrorDialog by remember { mutableStateOf(false) }
 
-    // Permission launcher for saving to gallery
-    val permissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { isGranted ->
-        if (isGranted) {
-            saveFlyerToGallery(context, composeView)
+    // Initialize message with event details if available
+    LaunchedEffect(title, date, recipient, eventType) {
+        val message = buildString {
+            if (title != null) append("$title\n")
+            if (date != null) append("Date: $date\n")
+            if (recipient != null) append("Recipient: $recipient\n")
+            if (eventType != null) append("Event Type: $eventType")
+        }
+        if (message.isNotBlank()) {
+            viewModel.updateMessage(message)
         }
     }
 
-    // Color palette
-    val colorPalette = listOf(
-        Color.White,
-        Color(0xFFFFE4E1), // Misty Rose
-        Color(0xFFE6E6FA), // Lavender
-        Color(0xFFF0FFF0), // Honeydew
-        Color(0xFFF5F5DC)  // Beige
-    )
-
-    // Font families
-    val fontFamilies = listOf(
-        FontFamily.Default to "Default",
-        FontFamily.Serif to "Serif",
-        FontFamily.SansSerif to "Sans Serif",
-        FontFamily.Monospace to "Monospace"
-    )
-
-    // Animated gradient background
-    val infiniteTransition = rememberInfiniteTransition()
-    val angle by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(10000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
+    // Error Dialog
+    if (showErrorDialog) {
+        AlertDialog(
+            onDismissRequest = { showErrorDialog = false },
+            title = { Text("Error") },
+            text = { Text(flyerState.error ?: "An unknown error occurred") },
+            confirmButton = {
+                TextButton(onClick = { showErrorDialog = false }) {
+                    Text("OK")
+                }
+            }
         )
-    )
+    }
+
+    // Show error in Snackbar and dialog for critical errors
+    LaunchedEffect(flyerState.error) {
+        flyerState.error?.let { error ->
+            if (error.contains("Permission") || error.contains("Storage")) {
+                showErrorDialog = true
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Flyer Preview") },
+                title = { Text("Preview Flyer") },
                 navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(Icons.Default.ArrowBack, "Back")
+                    }
+                },
+                actions = {
+                    IconButton(
+                        onClick = { viewModel.generateFlyerImage(context) },
+                        enabled = !flyerState.isLoading
+                    ) {
+                        Icon(Icons.Default.Share, "Share")
+                    }
+                    IconButton(
+                        onClick = { viewModel.saveToGallery(context) },
+                        enabled = !flyerState.isLoading
+                    ) {
+                        Icon(Icons.Default.Save, "Save")
                     }
                 }
             )
         }
     ) { paddingValues ->
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .padding(16.dp)
         ) {
-            // Display event details
-            Text(
-                text = title ?: "No Title",
-                style = MaterialTheme.typography.headlineMedium
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = "Date: ${date ?: "No Date"}",
-                style = MaterialTheme.typography.bodyLarge
-            )
-            Text(
-                text = "Recipient: ${recipient ?: "No Recipient"}",
-                style = MaterialTheme.typography.bodyLarge
-            )
-            Text(
-                text = "Event Type: ${eventType ?: "No Type"}",
-                style = MaterialTheme.typography.bodyLarge
-            )
-            
-            // Edit/Preview toggle button
-            IconButton(
-                onClick = { isEditMode = !isEditMode },
-                modifier = Modifier.align(Alignment.End)
-            ) {
-                Icon(
-                    imageVector = if (isEditMode) Icons.Default.VisibilityOff else Icons.Default.Edit,
-                    contentDescription = if (isEditMode) "Preview" else "Edit"
-                )
-            }
-
-            AnimatedVisibility(
-                visible = isEditMode,
-                enter = fadeIn() + expandVertically(),
-                exit = fadeOut() + shrinkVertically()
-            ) {
-                Column {
-                    // Color palette
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(bottom = 16.dp),
-                        horizontalArrangement = Arrangement.SpaceEvenly
-                    ) {
-                        colorPalette.forEach { color ->
-                            Box(
-                                modifier = Modifier
-                                    .size(40.dp)
-                                    .clip(CircleShape)
-                                    .background(color)
-                                    .border(
-                                        width = 2.dp,
-                                        color = if (color == selectedColor) MaterialTheme.colorScheme.primary else Color.Transparent,
-                                        shape = CircleShape
-                                    )
-                                    .clickable { selectedColor = color }
-                            )
-                        }
-                    }
-
-                    // Font selection
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(bottom = 16.dp),
-                        horizontalArrangement = Arrangement.SpaceEvenly
-                    ) {
-                        fontFamilies.forEach { (font, name) ->
-                            Text(
-                                text = name,
-                                fontFamily = font,
-                                modifier = Modifier
-                                    .clickable { selectedFontFamily = font }
-                                    .padding(8.dp)
-                                    .background(
-                                        if (font == selectedFontFamily) 
-                                            MaterialTheme.colorScheme.primaryContainer 
-                                        else 
-                                            Color.Transparent,
-                                        RoundedCornerShape(4.dp)
-                                    )
-                                    .padding(horizontal = 8.dp, vertical = 4.dp)
-                            )
-                        }
-                    }
-
-                    // Message field
-                    BasicTextField(
-                        value = message,
-                        onValueChange = { message = it },
-                        textStyle = TextStyle(
-                            fontSize = 16.sp,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            fontFamily = selectedFontFamily
-                        ),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(bottom = 16.dp)
-                            .background(
-                                color = MaterialTheme.colorScheme.surface,
-                                shape = RoundedCornerShape(8.dp)
-                            )
-                            .border(
-                                width = 1.dp,
-                                color = MaterialTheme.colorScheme.outline,
-                                shape = RoundedCornerShape(8.dp)
-                            )
-                            .padding(16.dp)
-                    )
-
-                    // Location field
-                    TextField(
-                        value = location,
-                        onValueChange = { location = it },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(bottom = 16.dp),
-                        label = { Text("Location") }
-                    )
-                }
-            }
-
-            // Flyer Preview
-            Box(
+            Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-                    .padding(16.dp)
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
             ) {
+                // Flyer Preview (pure Compose)
+                FlyerPreviewContent(flyerState = flyerState)
+
+                // Customization Controls
                 Card(
-                    modifier = Modifier.fillMaxSize(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surface
-                    )
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
                 ) {
                     Column(
                         modifier = Modifier
-                            .fillMaxSize()
-                            .padding(16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        Text(
-                            text = title ?: "No Title",
-                            style = MaterialTheme.typography.headlineMedium
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "Date: ${date ?: "No Date"}",
-                            style = MaterialTheme.typography.bodyLarge
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "Recipient: ${recipient ?: "No Recipient"}",
-                            style = MaterialTheme.typography.bodyLarge
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(
-                            text = message,
-                            style = MaterialTheme.typography.bodyLarge
-                        )
-                    }
-                }
-            }
-
-            // Share Button
-            Button(
-                onClick = {
-                    // TODO: Implement sharing functionality
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 16.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Share,
-                    contentDescription = "Share",
-                    modifier = Modifier.padding(end = 8.dp)
-                )
-                Text("Share Flyer")
-            }
-        }
-    }
-
-    // Hidden ComposeView for capturing
-    AndroidView(
-        factory = { context ->
-            ComposeView(context).apply {
-                setContent {
-                    Box(
-                        modifier = Modifier
                             .fillMaxWidth()
                             .padding(16.dp)
-                            .shadow(8.dp, RoundedCornerShape(16.dp))
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(selectedColor)
                     ) {
-                        Column(
-                            modifier = Modifier
-                                .padding(24.dp)
-                                .fillMaxWidth(),
-                            horizontalAlignment = Alignment.CenterHorizontally
+                        Text(
+                            text = "Customize Flyer",
+                            style = MaterialTheme.typography.titleLarge
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        // Message Input
+                        OutlinedTextField(
+                            value = flyerState.message,
+                            onValueChange = { viewModel.updateMessage(it) },
+                            label = { Text("Message") },
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = !flyerState.isLoading
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        // Location Input
+                        OutlinedTextField(
+                            value = flyerState.location,
+                            onValueChange = { viewModel.updateLocation(it) },
+                            label = { Text("Location") },
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = !flyerState.isLoading
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        // Color Selection
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text(
-                                text = message,
-                                fontSize = 24.sp,
-                                fontWeight = FontWeight.Bold,
-                                textAlign = TextAlign.Center,
-                                color = MaterialTheme.colorScheme.primary,
-                                fontFamily = selectedFontFamily,
-                                style = TextStyle(
-                                    shadow = Shadow(
-                                        color = Color.Black.copy(alpha = 0.3f),
-                                        blurRadius = 3f
-                                    )
-                                ),
-                                modifier = Modifier.padding(bottom = 16.dp)
-                            )
-                            Text(
-                                text = "Date: ${date ?: "No Date"}",
-                                fontSize = 16.sp,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                modifier = Modifier.padding(bottom = 8.dp)
-                            )
-                            if (location.isNotBlank()) {
-                                Text(
-                                    text = "Location: $location",
-                                    fontSize = 16.sp,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    modifier = Modifier.padding(bottom = 8.dp)
+                            Column {
+                                Text("Background Color")
+                                ColorPicker(
+                                    selectedColor = flyerState.backgroundColor,
+                                    onColorSelected = { viewModel.updateBackgroundColor(it) },
+                                    enabled = !flyerState.isLoading
                                 )
                             }
-                            Text(
-                                text = "Recipient: ${recipient ?: "No Recipient"}",
-                                fontSize = 16.sp,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
+                            Column {
+                                Text("Text Color")
+                                ColorPicker(
+                                    selectedColor = flyerState.textColor,
+                                    onColorSelected = { viewModel.updateTextColor(it) },
+                                    enabled = !flyerState.isLoading
+                                )
+                            }
                         }
                     }
                 }
-            }.also { composeView = it }
-        },
-        modifier = Modifier.size(0.dp)
-    )
+            }
+
+            // Loading Indicator
+            if (flyerState.isLoading) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.5f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
+                }
+            }
+
+            // Error Snackbar
+            flyerState.error?.let { error ->
+                if (!error.contains("Permission") && !error.contains("Storage")) {
+                    Snackbar(
+                        modifier = Modifier
+                            .padding(16.dp)
+                            .align(Alignment.BottomCenter)
+                    ) {
+                        Text(error)
+                    }
+                }
+            }
+        }
+    }
 }
 
 private fun saveFlyerToGallery(context: android.content.Context, composeView: ComposeView?) {

@@ -45,13 +45,32 @@ fun NavGraph(navController: NavHostController) {
             )
         }
         composable(
-            "flyer_preview/{eventId}/{title}/{date}/{recipient}/{eventType}",
+            route = "flyer_preview/{eventId}?title={title}&date={date}&recipient={recipient}&eventType={eventType}",
             arguments = listOf(
-                navArgument("eventId") { type = NavType.StringType },
-                navArgument("title") { type = NavType.StringType },
-                navArgument("date") { type = NavType.StringType },
-                navArgument("recipient") { type = NavType.StringType },
-                navArgument("eventType") { type = NavType.StringType }
+                navArgument("eventId") {
+                    type = NavType.StringType
+                    nullable = true
+                },
+                navArgument("title") {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                },
+                navArgument("date") {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                },
+                navArgument("recipient") {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                },
+                navArgument("eventType") {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                }
             )
         ) { backStackEntry ->
             val eventId = backStackEntry.arguments?.getString("eventId")
@@ -59,13 +78,14 @@ fun NavGraph(navController: NavHostController) {
             val date = backStackEntry.arguments?.getString("date")
             val recipient = backStackEntry.arguments?.getString("recipient")
             val eventType = backStackEntry.arguments?.getString("eventType")
+
             FlyerPreviewScreen(
-                navController = navController,
                 eventId = eventId,
                 title = title,
                 date = date,
                 recipient = recipient,
-                eventType = eventType
+                eventType = eventType,
+                onNavigateBack = { navController.popBackStack() }
             )
         }
         composable("templates") {

@@ -13,8 +13,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.glorywisher.ui.viewmodels.AddEventViewModel
 import com.example.glorywisher.ui.viewmodels.ViewModelFactory
-import java.text.SimpleDateFormat
-import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

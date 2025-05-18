@@ -73,7 +73,7 @@ fun SettingsScreen(navController: NavController) {
                     description = "Use dark theme",
                     icon = Icons.Default.DarkMode,
                     checked = themeState.isDarkMode,
-                    onCheckedChange = { themeState.setDarkMode(it) }
+                    onCheckedChange = { themeState.updateThemeMode(it) }
                 )
             }
             

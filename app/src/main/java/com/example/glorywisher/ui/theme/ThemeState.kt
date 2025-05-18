@@ -13,7 +13,7 @@ class ThemeState {
         isDarkMode = !isDarkMode
     }
 
-    fun setDarkMode(enabled: Boolean) {
-        isDarkMode = enabled
+    fun updateThemeMode(darkMode: Boolean) {
+        isDarkMode = darkMode
     }
 } 

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "750379020460",
+    "project_id": "glory-wisher",
+    "storage_bucket": "glory-wisher.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:750379020460:android:614759e5ce3f2fe039af09",
+        "android_client_info": {
+          "package_name": "com.example.glorywisher"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCF2GScIi09GrbkhyyZV7Ldltpdq6zfhsY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

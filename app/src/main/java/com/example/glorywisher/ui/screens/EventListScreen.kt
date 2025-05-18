@@ -1,5 +1,7 @@
 package com.example.glorywisher.ui.screens
 
+import android.util.Log
+import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -28,6 +30,7 @@ fun EventListScreen(
     val eventListState by viewModel.eventListState.collectAsState()
     var showDeleteDialog by remember { mutableStateOf<EventData?>(null) }
     var searchQuery by remember { mutableStateOf("") }
+    val context = LocalContext.current
 
     Scaffold(
         topBar = {
@@ -84,11 +87,21 @@ fun EventListScreen(
                         EventCard(
                             event = event,
                             onEdit = {
-                                navController.navigate("add_event/${event.id}/${event.title}/${event.date}/${event.recipient}/${event.eventType}")
+                                try {
+                                    navController.navigate("add_event/${event.id}")
+                                } catch (e: Exception) {
+                                    Log.e("EventListScreen", "Navigation error", e)
+                                    Toast.makeText(context, "Error navigating to edit screen", Toast.LENGTH_LONG).show()
+                                }
                             },
                             onDelete = { showDeleteDialog = event },
                             onPreview = {
-                                navController.navigate("flyer_preview/${event.id}/${event.title}/${event.date}/${event.recipient}/${event.eventType}")
+                                try {
+                                    navController.navigate("flyer_preview/${event.id}")
+                                } catch (e: Exception) {
+                                    Log.e("EventListScreen", "Navigation error", e)
+                                    Toast.makeText(context, "Error navigating to preview screen", Toast.LENGTH_LONG).show()
+                                }
                             }
                         )
                     }

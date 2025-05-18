@@ -150,10 +150,7 @@ fun TemplatesScreen(navController: NavController) {
                     template = template,
                     onClick = {
                         // Navigate to flyer preview with template
-                        navController.navigate(
-                            "flyer_preview/new/${template.title}/" +
-                            "01/01/2024/Recipient/${template.title}"
-                        )
+                        navController.navigate("flyer_preview/new?template=${template.title}")
                     }
                 )
             }

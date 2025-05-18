@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.io.File
 import java.io.FileOutputStream
+import android.util.Log
 
 data class FlyerPreviewState(
     val message: String = "",
@@ -34,6 +35,42 @@ class FlyerPreviewViewModel(
     private val _flyerState = MutableStateFlow(FlyerPreviewState())
     val flyerState: StateFlow<FlyerPreviewState> = _flyerState.asStateFlow()
     private var currentView: View? = null
+
+    fun loadEventData(eventId: String) {
+        viewModelScope.launch {
+            try {
+                _flyerState.value = _flyerState.value.copy(isLoading = true, error = null)
+                Log.d("FlyerPreviewViewModel", "Loading event data for ID: $eventId")
+                
+                val event = repository.getEvent(eventId)
+                if (event != null) {
+                    val message = buildString {
+                        append("${event.title}\n")
+                        append("Date: ${event.date}\n")
+                        append("Recipient: ${event.recipient}\n")
+                        append("Event Type: ${event.eventType}")
+                    }
+                    _flyerState.value = _flyerState.value.copy(
+                        message = message,
+                        isLoading = false
+                    )
+                    Log.d("FlyerPreviewViewModel", "Event data loaded successfully")
+                } else {
+                    _flyerState.value = _flyerState.value.copy(
+                        error = "Event not found",
+                        isLoading = false
+                    )
+                    Log.e("FlyerPreviewViewModel", "Event not found: $eventId")
+                }
+            } catch (e: Exception) {
+                Log.e("FlyerPreviewViewModel", "Error loading event data", e)
+                _flyerState.value = _flyerState.value.copy(
+                    error = "Error loading event: ${e.message}",
+                    isLoading = false
+                )
+            }
+        }
+    }
 
     fun updateMessage(message: String) {
         _flyerState.value = _flyerState.value.copy(message = message)

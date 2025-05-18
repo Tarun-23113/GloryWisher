@@ -37,28 +37,21 @@ fun NavGraph(navController: NavHostController) {
         composable("event_list") {
             EventListScreen(navController)
         }
+        // Simple add_event route for new events
+        composable("add_event") {
+            AddEventScreen(navController = navController)
+        }
+        // Edit event route with parameters
         composable(
-            "add_event/{eventId}/{title}/{date}/{recipient}/{eventType}",
+            "add_event/{eventId}",
             arguments = listOf(
-                navArgument("eventId") { type = NavType.StringType },
-                navArgument("title") { type = NavType.StringType },
-                navArgument("date") { type = NavType.StringType },
-                navArgument("recipient") { type = NavType.StringType },
-                navArgument("eventType") { type = NavType.StringType }
+                navArgument("eventId") { type = NavType.StringType }
             )
         ) { backStackEntry ->
             val eventId = backStackEntry.arguments?.getString("eventId")
-            val title = backStackEntry.arguments?.getString("title")
-            val date = backStackEntry.arguments?.getString("date")
-            val recipient = backStackEntry.arguments?.getString("recipient")
-            val eventType = backStackEntry.arguments?.getString("eventType")
             AddEventScreen(
                 navController = navController,
-                eventId = eventId,
-                title = title,
-                date = date,
-                recipient = recipient,
-                eventType = eventType
+                eventId = eventId
             )
         }
         composable(

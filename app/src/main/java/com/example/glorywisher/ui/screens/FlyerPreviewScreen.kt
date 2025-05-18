@@ -30,6 +30,7 @@ import com.example.glorywisher.ui.viewmodels.FlyerPreviewViewModel
 import com.example.glorywisher.ui.viewmodels.ViewModelFactory
 import java.io.File
 import java.io.FileOutputStream
+import android.util.Log
 
 @Composable
 private fun FlyerPreviewContent(flyerState: FlyerPreviewState) {
@@ -129,39 +130,42 @@ fun FlyerPreviewScreen(
     val flyerState by viewModel.flyerState.collectAsState()
     var showErrorDialog by remember { mutableStateOf(false) }
 
-    // Initialize message with event details if available
-    LaunchedEffect(title, date, recipient, eventType) {
-        val message = buildString {
-            if (title != null) append("$title\n")
-            if (date != null) append("Date: $date\n")
-            if (recipient != null) append("Recipient: $recipient\n")
-            if (eventType != null) append("Event Type: $eventType")
-        }
-        if (message.isNotBlank()) {
-            viewModel.updateMessage(message)
-        }
-    }
-
-    // Error Dialog
-    if (showErrorDialog) {
-        AlertDialog(
-            onDismissRequest = { showErrorDialog = false },
-            title = { Text("Error") },
-            text = { Text(flyerState.error ?: "An unknown error occurred") },
-            confirmButton = {
-                TextButton(onClick = { showErrorDialog = false }) {
-                    Text("OK")
-                }
+    // Load event data if eventId is provided
+    LaunchedEffect(eventId) {
+        if (eventId != null && eventId != "new") {
+            Log.d("FlyerPreviewScreen", "Loading event data for ID: $eventId")
+            viewModel.loadEventData(eventId)
+        } else if (title != null) {
+            // For new events or templates
+            val message = buildString {
+                if (title != null) append("$title\n")
+                if (date != null) append("Date: $date\n")
+                if (recipient != null) append("Recipient: $recipient\n")
+                if (eventType != null) append("Event Type: $eventType")
             }
-        )
+            if (message.isNotBlank()) {
+                viewModel.updateMessage(message)
+            }
+        }
     }
 
-    // Show error in Snackbar and dialog for critical errors
+    // Handle loading state
+    if (flyerState.isLoading) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.5f)),
+            contentAlignment = Alignment.Center
+        ) {
+            CircularProgressIndicator()
+        }
+    }
+
+    // Handle errors
     LaunchedEffect(flyerState.error) {
         flyerState.error?.let { error ->
-            if (error.contains("Permission") || error.contains("Storage")) {
-                showErrorDialog = true
-            }
+            Log.e("FlyerPreviewScreen", "Error: $error")
+            Toast.makeText(context, error, Toast.LENGTH_LONG).show()
         }
     }
 
@@ -264,18 +268,6 @@ fun FlyerPreviewScreen(
                             }
                         }
                     }
-                }
-            }
-
-            // Loading Indicator
-            if (flyerState.isLoading) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color.Black.copy(alpha = 0.5f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator()
                 }
             }
 

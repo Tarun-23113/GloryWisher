@@ -1,11 +1,13 @@
 package com.example.glorywisher.data
 
+import android.util.Log
+import android.widget.Toast
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.tasks.await
 
-class FirestoreRepository {
+class FirestoreRepository(private val context: android.content.Context) {
     private val db = FirebaseFirestore.getInstance()
     private val eventsCollection = db.collection("events")
     private val auth = FirebaseAuth.getInstance()
@@ -41,13 +43,43 @@ class FirestoreRepository {
     }
 
     suspend fun signIn(email: String, password: String): FirebaseUser {
-        val result = auth.signInWithEmailAndPassword(email, password).await()
-        return result.user ?: throw Exception("Authentication failed")
+        return try {
+            val result = auth.signInWithEmailAndPassword(email, password).await()
+            val user = result.user
+            if (user != null) {
+                Log.d("FirebaseAuth", "Login success: ${user.email}")
+                user
+            } else {
+                val error = "Authentication failed: No user returned"
+                Log.e("FirebaseAuth", error)
+                Toast.makeText(context, error, Toast.LENGTH_LONG).show()
+                throw Exception(error)
+            }
+        } catch (e: Exception) {
+            Log.e("FirebaseAuth", "Login failed", e)
+            Toast.makeText(context, "Login error: ${e.message}", Toast.LENGTH_LONG).show()
+            throw e
+        }
     }
 
     suspend fun signUp(email: String, password: String, name: String): FirebaseUser {
-        val result = auth.createUserWithEmailAndPassword(email, password).await()
-        return result.user ?: throw Exception("Registration failed")
+        return try {
+            val result = auth.createUserWithEmailAndPassword(email, password).await()
+            val user = result.user
+            if (user != null) {
+                Log.d("FirebaseAuth", "Registration success: ${user.email}")
+                user
+            } else {
+                val error = "Registration failed: No user returned"
+                Log.e("FirebaseAuth", error)
+                Toast.makeText(context, error, Toast.LENGTH_LONG).show()
+                throw Exception(error)
+            }
+        } catch (e: Exception) {
+            Log.e("FirebaseAuth", "Registration failed", e)
+            Toast.makeText(context, "Registration error: ${e.message}", Toast.LENGTH_LONG).show()
+            throw e
+        }
     }
 
     suspend fun signOut() {

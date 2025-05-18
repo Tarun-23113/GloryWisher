@@ -1,5 +1,7 @@
 package com.example.glorywisher.ui.viewmodels
 
+import android.util.Log
+import android.widget.Toast
 import androidx.lifecycle.viewModelScope
 import com.example.glorywisher.data.EventData
 import com.example.glorywisher.data.FirestoreRepository
@@ -27,28 +29,48 @@ class AddEventViewModel(
     val addEventState: StateFlow<AddEventState> = _addEventState.asStateFlow()
 
     fun updateTitle(title: String) {
+        Log.d("AddEventViewModel", "Updating title: $title")
         _addEventState.value = _addEventState.value.copy(title = title)
     }
 
     fun updateDate(date: String) {
+        Log.d("AddEventViewModel", "Updating date: $date")
         _addEventState.value = _addEventState.value.copy(date = date)
     }
 
     fun updateRecipient(recipient: String) {
+        Log.d("AddEventViewModel", "Updating recipient: $recipient")
         _addEventState.value = _addEventState.value.copy(recipient = recipient)
     }
 
     fun updateEventType(eventType: String) {
+        Log.d("AddEventViewModel", "Updating event type: $eventType")
         _addEventState.value = _addEventState.value.copy(eventType = eventType)
     }
 
     fun loadEvent(eventId: String) {
+        Log.d("AddEventViewModel", "Loading event with ID: $eventId")
         viewModelScope.launch {
             try {
+                if (eventId.isBlank()) {
+                    val error = "Invalid event ID"
+                    Log.e("AddEventViewModel", error)
+                    setError(error)
+                    _addEventState.value = _addEventState.value.copy(
+                        error = error,
+                        isLoading = false
+                    )
+                    return@launch
+                }
+
                 setLoading()
                 _addEventState.value = _addEventState.value.copy(isLoading = true)
+                
+                Log.d("AddEventViewModel", "Fetching event from repository")
                 val event = repository.getEvent(eventId)
+                
                 event?.let {
+                    Log.d("AddEventViewModel", "Event loaded successfully: ${it.title}")
                     _addEventState.value = _addEventState.value.copy(
                         title = it.title,
                         date = it.date,
@@ -58,16 +80,20 @@ class AddEventViewModel(
                     )
                     setSuccess(it)
                 } ?: run {
-                    setError("Event not found")
+                    val error = "Event not found"
+                    Log.e("AddEventViewModel", error)
+                    setError(error)
                     _addEventState.value = _addEventState.value.copy(
-                        error = "Event not found",
+                        error = error,
                         isLoading = false
                     )
                 }
             } catch (e: Exception) {
-                setError(e.message ?: "Failed to load event")
+                val error = e.message ?: "Failed to load event"
+                Log.e("AddEventViewModel", "Error loading event", e)
+                setError(error)
                 _addEventState.value = _addEventState.value.copy(
-                    error = e.message,
+                    error = error,
                     isLoading = false
                 )
             }
@@ -75,17 +101,32 @@ class AddEventViewModel(
     }
 
     fun saveEvent(eventId: String = "") {
+        Log.d("AddEventViewModel", "Saving event with ID: $eventId")
         viewModelScope.launch {
             try {
                 if (!validateInput()) {
+                    Log.e("AddEventViewModel", "Input validation failed")
                     return@launch
                 }
 
                 setLoading()
                 _addEventState.value = _addEventState.value.copy(isLoading = true)
 
+                Log.d("AddEventViewModel", "Getting current user")
                 val currentUser = repository.getCurrentUser()
-                val userId = currentUser?.uid ?: throw Exception("User not authenticated")
+                if (currentUser == null) {
+                    val error = "User not authenticated"
+                    Log.e("AddEventViewModel", error)
+                    setError(error)
+                    _addEventState.value = _addEventState.value.copy(
+                        error = error,
+                        isLoading = false
+                    )
+                    return@launch
+                }
+
+                val userId = currentUser.uid
+                Log.d("AddEventViewModel", "Creating event for user: $userId")
 
                 val event = EventData(
                     id = eventId.ifEmpty { UUID.randomUUID().toString() },
@@ -97,20 +138,25 @@ class AddEventViewModel(
                 )
 
                 if (eventId.isEmpty()) {
+                    Log.d("AddEventViewModel", "Adding new event: ${event.title}")
                     repository.addEvent(event)
                 } else {
+                    Log.d("AddEventViewModel", "Updating existing event: ${event.title}")
                     repository.updateEvent(event)
                 }
 
+                Log.d("AddEventViewModel", "Event saved successfully")
                 setSuccess(event)
                 _addEventState.value = _addEventState.value.copy(
                     isLoading = false,
                     isSuccess = true
                 )
             } catch (e: Exception) {
-                setError(e.message ?: "Failed to save event")
+                val error = e.message ?: "Failed to save event"
+                Log.e("AddEventViewModel", "Error saving event", e)
+                setError(error)
                 _addEventState.value = _addEventState.value.copy(
-                    error = e.message,
+                    error = error,
                     isLoading = false
                 )
             }
@@ -118,6 +164,7 @@ class AddEventViewModel(
     }
 
     private fun validateInput(): Boolean {
+        Log.d("AddEventViewModel", "Validating input")
         val state = _addEventState.value
         val errors = mutableListOf<String>()
 
@@ -134,6 +181,7 @@ class AddEventViewModel(
                     errors.add("Please select a future date")
                 }
             } catch (e: Exception) {
+                Log.e("AddEventViewModel", "Date parsing error", e)
                 errors.add("Invalid date format. Use DD/MM/YYYY")
             }
         }
@@ -145,15 +193,20 @@ class AddEventViewModel(
         }
 
         if (errors.isNotEmpty()) {
+            val errorMessage = errors.joinToString("\n")
+            Log.e("AddEventViewModel", "Validation errors: $errorMessage")
             _addEventState.value = _addEventState.value.copy(
-                error = errors.joinToString("\n")
+                error = errorMessage
             )
             return false
         }
+        
+        Log.d("AddEventViewModel", "Input validation successful")
         return true
     }
 
     fun resetState() {
+        Log.d("AddEventViewModel", "Resetting state")
         _addEventState.value = AddEventState()
     }
 } 

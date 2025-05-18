@@ -23,7 +23,7 @@ class ViewModelFactory(
 
     companion object {
         fun create(context: android.content.Context): ViewModelFactory {
-            val repository = FirestoreRepository()
+            val repository = FirestoreRepository(context)
             return ViewModelFactory(repository)
         }
     }

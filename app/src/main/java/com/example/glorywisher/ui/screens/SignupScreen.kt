@@ -5,17 +5,33 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import com.google.firebase.auth.FirebaseAuth
+import com.example.glorywisher.ui.viewmodels.AuthViewModel
+import com.example.glorywisher.ui.viewmodels.ViewModelFactory
 
 @Composable
-fun SignupScreen(navController: NavController) {
+fun SignupScreen(
+    navController: NavController,
+    viewModel: AuthViewModel = viewModel(
+        factory = ViewModelFactory.create(LocalContext.current)
+    )
+) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
-    var isLoading by remember { mutableStateOf(false) }
-    var error by remember { mutableStateOf<String?>(null) }
+    val authState by viewModel.authState.collectAsState()
+    val context = LocalContext.current
+
+    LaunchedEffect(authState.user) {
+        if (authState.user != null) {
+            navController.navigate("home") {
+                popUpTo("signup") { inclusive = true }
+            }
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -40,18 +56,7 @@ fun SignupScreen(navController: NavController) {
         )
         Spacer(modifier = Modifier.height(16.dp))
         Button(
-            onClick = {
-                isLoading = true
-                FirebaseAuth.getInstance().createUserWithEmailAndPassword(email, password)
-                    .addOnCompleteListener { task ->
-                        isLoading = false
-                        if (task.isSuccessful) {
-                            navController.navigate("home")
-                        } else {
-                            error = task.exception?.message
-                        }
-                    }
-            },
+            onClick = { viewModel.signUp(email, password, "") },
             modifier = Modifier.fillMaxWidth()
         ) {
             Text("Sign Up")
@@ -60,10 +65,10 @@ fun SignupScreen(navController: NavController) {
         TextButton(onClick = { navController.navigate("login") }) {
             Text("Already have an account? Login")
         }
-        if (isLoading) {
+        if (authState.isLoading) {
             CircularProgressIndicator()
         }
-        error?.let {
+        authState.error?.let {
             Text(text = it, color = MaterialTheme.colorScheme.error)
         }
     }

@@ -1,5 +1,7 @@
 package com.example.glorywisher.ui.screens
 
+import android.util.Log
+import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -28,16 +30,33 @@ fun AddEventScreen(
     )
 ) {
     val addEventState by viewModel.addEventState.collectAsState()
+    val context = LocalContext.current
+
+    Log.d("AddEventScreen", "Initializing screen with eventId: $eventId")
 
     LaunchedEffect(eventId) {
         if (eventId != null) {
+            Log.d("AddEventScreen", "Loading event with ID: $eventId")
             viewModel.loadEvent(eventId)
         }
     }
 
     LaunchedEffect(addEventState.isSuccess) {
         if (addEventState.isSuccess) {
-            navController.popBackStack()
+            Log.d("AddEventScreen", "Event saved successfully, navigating back")
+            try {
+                navController.popBackStack()
+            } catch (e: Exception) {
+                Log.e("AddEventScreen", "Navigation error", e)
+                Toast.makeText(context, "Error navigating back: ${e.message}", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    LaunchedEffect(addEventState.error) {
+        addEventState.error?.let { error ->
+            Log.e("AddEventScreen", "Error state: $error")
+            Toast.makeText(context, error, Toast.LENGTH_LONG).show()
         }
     }
 
@@ -46,7 +65,17 @@ fun AddEventScreen(
             TopAppBar(
                 title = { Text(if (eventId == null) "Add Event" else "Edit Event") },
                 navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
+                    IconButton(
+                        onClick = {
+                            Log.d("AddEventScreen", "Back button clicked")
+                            try {
+                                navController.popBackStack()
+                            } catch (e: Exception) {
+                                Log.e("AddEventScreen", "Navigation error", e)
+                                Toast.makeText(context, "Error navigating back: ${e.message}", Toast.LENGTH_LONG).show()
+                            }
+                        }
+                    ) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")
                     }
                 }
@@ -61,7 +90,10 @@ fun AddEventScreen(
         ) {
             TextField(
                 value = addEventState.title,
-                onValueChange = { viewModel.updateTitle(it) },
+                onValueChange = { 
+                    Log.d("AddEventScreen", "Title changed: $it")
+                    viewModel.updateTitle(it)
+                },
                 label = { Text("Event Title") },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -70,7 +102,10 @@ fun AddEventScreen(
 
             TextField(
                 value = addEventState.date,
-                onValueChange = { viewModel.updateDate(it) },
+                onValueChange = { 
+                    Log.d("AddEventScreen", "Date changed: $it")
+                    viewModel.updateDate(it)
+                },
                 label = { Text("Date (DD/MM/YYYY)") },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -79,7 +114,10 @@ fun AddEventScreen(
 
             TextField(
                 value = addEventState.recipient,
-                onValueChange = { viewModel.updateRecipient(it) },
+                onValueChange = { 
+                    Log.d("AddEventScreen", "Recipient changed: $it")
+                    viewModel.updateRecipient(it)
+                },
                 label = { Text("Recipient") },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -88,7 +126,10 @@ fun AddEventScreen(
 
             TextField(
                 value = addEventState.eventType,
-                onValueChange = { viewModel.updateEventType(it) },
+                onValueChange = { 
+                    Log.d("AddEventScreen", "Event type changed: $it")
+                    viewModel.updateEventType(it)
+                },
                 label = { Text("Event Type") },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -96,6 +137,7 @@ fun AddEventScreen(
             )
 
             if (addEventState.isLoading) {
+                Log.d("AddEventScreen", "Showing loading indicator")
                 CircularProgressIndicator(
                     modifier = Modifier
                         .padding(16.dp)
@@ -104,6 +146,7 @@ fun AddEventScreen(
             }
 
             addEventState.error?.let { error ->
+                Log.e("AddEventScreen", "Displaying error: $error")
                 Text(
                     text = error,
                     color = MaterialTheme.colorScheme.error,
@@ -112,7 +155,15 @@ fun AddEventScreen(
             }
 
             Button(
-                onClick = { viewModel.saveEvent(eventId ?: "") },
+                onClick = {
+                    Log.d("AddEventScreen", "Save button clicked for eventId: $eventId")
+                    try {
+                        viewModel.saveEvent(eventId ?: "")
+                    } catch (e: Exception) {
+                        Log.e("AddEventScreen", "Error saving event", e)
+                        Toast.makeText(context, "Error saving event: ${e.message}", Toast.LENGTH_LONG).show()
+                    }
+                },
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = 16.dp)

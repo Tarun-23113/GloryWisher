@@ -3,11 +3,11 @@ package com.example.glorywisher.ui.viewmodels
 import androidx.lifecycle.viewModelScope
 import com.example.glorywisher.data.EventData
 import com.example.glorywisher.data.FirestoreRepository
-import com.example.glorywisher.data.PaginatedResult
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.io.IOException
 
 data class EventListState(
     val events: List<EventData> = emptyList(),
@@ -113,10 +113,10 @@ class EventListViewModel(
                 val currentUser = repository.getCurrentUser()
                 val userId = currentUser?.uid ?: throw Exception("User not authenticated")
                 
-                // Get all events for the user
+                // Get events with pagination
                 val result = repository.getEvents(
                     userId = userId,
-                    pageSize = Int.MAX_VALUE // Get all events for filtering
+                    pageSize = PAGE_SIZE
                 )
                 
                 // Apply search filter
@@ -134,16 +134,31 @@ class EventListViewModel(
                 _eventListState.value = _eventListState.value.copy(
                     events = filteredEvents,
                     isLoading = false,
-                    hasMoreEvents = false, // No pagination when filtering
-                    lastDocumentId = null
+                    hasMoreEvents = result.hasMore && filteredEvents.size == PAGE_SIZE,
+                    lastDocumentId = if (filteredEvents.isNotEmpty()) result.lastDocumentId else null
                 )
             } catch (e: Exception) {
-                setError(e.message ?: "Failed to filter events")
+                val errorMessage = when (e) {
+                    is SecurityException -> "Authentication required"
+                    is IOException -> "Network error. Please check your connection"
+                    else -> "Failed to filter events: ${e.message}"
+                }
+                setError(errorMessage)
                 _eventListState.value = _eventListState.value.copy(
-                    error = e.message,
+                    error = errorMessage,
                     isLoading = false
                 )
             }
         }
+    }
+
+    // Add state restoration
+    fun restoreState(savedState: EventListState) {
+        _eventListState.value = savedState
+    }
+
+    // Add method to clear state
+    fun clearState() {
+        _eventListState.value = EventListState()
     }
 } 

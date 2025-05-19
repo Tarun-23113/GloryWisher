@@ -132,6 +132,15 @@ fun FlyerPreviewScreen(
     var showSuccessDialog by remember { mutableStateOf(false) }
     var successMessage by remember { mutableStateOf("") }
 
+    // Validate parameters
+    LaunchedEffect(eventId, title, date, recipient, eventType) {
+        if (eventId == null && title == null && date == null && recipient == null && eventType == null) {
+            showErrorDialog = true
+            flyerState.error = "No event data provided"
+            return@LaunchedEffect
+        }
+    }
+
     // Handle configuration changes
     DisposableEffect(Unit) {
         onDispose {
@@ -144,7 +153,7 @@ fun FlyerPreviewScreen(
         if (eventId != null && eventId != "new") {
             Log.d("FlyerPreviewScreen", "Loading event data for ID: $eventId")
             viewModel.loadEventData(eventId)
-        } else if (title != null) {
+        } else if (title != null || date != null || recipient != null || eventType != null) {
             // For new events or templates
             val message = buildString {
                 if (title != null) append("$title\n")

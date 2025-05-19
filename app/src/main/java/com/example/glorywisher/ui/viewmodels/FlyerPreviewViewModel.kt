@@ -26,7 +26,7 @@ data class FlyerPreviewState(
     val textColor: Color = Color.Black,
     val fontFamily: FontFamily = FontFamily.Default,
     val isLoading: Boolean = false,
-    val error: String? = null,
+    var error: String? = null,
     val shareUri: Uri? = null
 )
 

@@ -5,8 +5,12 @@ import android.widget.Toast
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.FirebaseFirestoreException
+import com.google.firebase.firestore.FirebaseFirestoreSettings
 import com.google.firebase.firestore.Query
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.tasks.await
+import java.io.IOException
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -17,9 +21,34 @@ data class PaginatedResult<T>(
 )
 
 class FirestoreRepository(private val context: android.content.Context) {
-    private val db = FirebaseFirestore.getInstance()
+    private val db = FirebaseFirestore.getInstance().apply {
+        // Enable offline persistence
+        firestoreSettings = FirebaseFirestoreSettings.Builder()
+            .setPersistenceEnabled(true)
+            .setCacheSizeBytes(FirebaseFirestoreSettings.CACHE_SIZE_UNLIMITED)
+            .build()
+    }
     private val eventsCollection = db.collection("events")
     private val auth = FirebaseAuth.getInstance()
+
+    // Add retry logic
+    private suspend fun <T> withRetry(
+        maxRetries: Int = 3,
+        initialDelay: Long = 1000,
+        block: suspend () -> T
+    ): T {
+        var currentDelay = initialDelay
+        repeat(maxRetries) { attempt ->
+            try {
+                return block()
+            } catch (e: Exception) {
+                if (attempt == maxRetries - 1) throw e
+                delay(currentDelay)
+                currentDelay *= 2
+            }
+        }
+        throw IllegalStateException("Should not reach here")
+    }
 
     private fun validateEvent(event: EventData): Boolean {
         return when {
@@ -107,34 +136,46 @@ class FirestoreRepository(private val context: android.content.Context) {
         lastDocumentId: String? = null,
         pageSize: Int = 20
     ): PaginatedResult<EventData> {
-        return try {
-            validateUserAccess(userId)
-            Log.d("Firestore", "Fetching events for user: $userId")
-            
-            var query = eventsCollection
-                .whereEqualTo("userId", userId)
-                .orderBy("date", Query.Direction.DESCENDING)
-                .limit(pageSize.toLong())
+        return withRetry {
+            try {
+                validateUserAccess(userId)
+                Log.d("Firestore", "Fetching events for user: $userId")
+                
+                var query = eventsCollection
+                    .whereEqualTo("userId", userId)
+                    .orderBy("date", Query.Direction.DESCENDING)
+                    .limit(pageSize.toLong())
 
-            if (lastDocumentId != null) {
-                val lastDocument = eventsCollection.document(lastDocumentId).get().await()
-                query = query.startAfter(lastDocument)
+                if (lastDocumentId != null) {
+                    val lastDocument = eventsCollection.document(lastDocumentId).get().await()
+                    query = query.startAfter(lastDocument)
+                }
+
+                val snapshot = query.get().await()
+                val events = snapshot.documents.mapNotNull { it.toObject(EventData::class.java) }
+                
+                Log.d("Firestore", "Successfully fetched ${events.size} events")
+                
+                PaginatedResult(
+                    events = events,
+                    hasMore = events.size == pageSize,
+                    lastDocumentId = if (events.isNotEmpty()) snapshot.documents.last().id else null
+                )
+            } catch (e: Exception) {
+                Log.e("Firestore", "Failed to fetch events", e)
+                when (e) {
+                    is FirebaseFirestoreException -> {
+                        when (e.code) {
+                            FirebaseFirestoreException.Code.PERMISSION_DENIED ->
+                                throw SecurityException("Permission denied to access events")
+                            FirebaseFirestoreException.Code.UNAVAILABLE ->
+                                throw IOException("Firestore is currently unavailable")
+                            else -> throw e
+                        }
+                    }
+                    else -> throw e
+                }
             }
-
-            val snapshot = query.get().await()
-            val events = snapshot.documents.mapNotNull { it.toObject(EventData::class.java) }
-            
-            Log.d("Firestore", "Successfully fetched ${events.size} events")
-            
-            PaginatedResult(
-                events = events,
-                hasMore = events.size == pageSize,
-                lastDocumentId = if (events.isNotEmpty()) snapshot.documents.last().id else null
-            )
-        } catch (e: Exception) {
-            Log.e("Firestore", "Failed to fetch events", e)
-            Toast.makeText(context, "Error fetching events: ${e.message}", Toast.LENGTH_LONG).show()
-            throw e
         }
     }
 

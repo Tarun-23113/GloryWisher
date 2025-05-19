@@ -67,7 +67,14 @@ class MainActivity : ComponentActivity() {
 
                     if (navigateTo == "flyer_preview" && eventId != null) {
                         Log.d("MainActivity", "Handling notification intent: flyer_preview")
-                        navController.navigate("flyer_preview/$eventId/$eventTitle/$eventDate/$eventRecipient/$eventType")
+                        val route = buildString {
+                            append("flyer_preview/$eventId")
+                            if (eventTitle != null) append("?title=$eventTitle")
+                            if (eventDate != null) append("&date=$eventDate")
+                            if (eventRecipient != null) append("&recipient=$eventRecipient")
+                            if (eventType != null) append("&eventType=$eventType")
+                        }
+                        navController.navigate(route)
                     }
 
                     CompositionLocalProvider(LocalThemeState provides themeState) {

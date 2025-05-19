@@ -13,7 +13,7 @@ abstract class BaseViewModel<T> : ViewModel() {
         _uiState.value = UiState.Loading
     }
 
-    protected fun setError(error: String) {
+    protected open fun setError(error: String) {
         _uiState.value = UiState.Error(error)
     }
 

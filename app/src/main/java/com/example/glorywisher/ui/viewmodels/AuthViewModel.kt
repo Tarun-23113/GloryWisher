@@ -56,7 +56,10 @@ class AuthViewModel(
         viewModelScope.launch {
             try {
                 setLoading()
-                _authState.value = _authState.value.copy(isLoading = true)
+                _authState.value = _authState.value.copy(
+                    isLoading = true,
+                    error = null
+                )
                 
                 val result = repository.signIn(email, password)
                 Log.d("AuthViewModel", "Sign in successful for: ${result.email}")
@@ -83,7 +86,10 @@ class AuthViewModel(
         viewModelScope.launch {
             try {
                 setLoading()
-                _authState.value = _authState.value.copy(isLoading = true)
+                _authState.value = _authState.value.copy(
+                    isLoading = true,
+                    error = null
+                )
                 
                 val result = repository.signUp(email, password, name)
                 Log.d("AuthViewModel", "Sign up successful for: ${result.email}")
@@ -122,5 +128,12 @@ class AuthViewModel(
                 setError(error)
             }
         }
+    }
+
+    override fun setError(error: String) {
+        _authState.value = _authState.value.copy(
+            error = error,
+            isLoading = false
+        )
     }
 } 

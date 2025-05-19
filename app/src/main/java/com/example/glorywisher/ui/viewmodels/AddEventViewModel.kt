@@ -8,7 +8,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import java.text.SimpleDateFormat
 import java.util.*
 
 data class AddEventState(
@@ -109,7 +108,10 @@ class AddEventViewModel(
                 }
 
                 setLoading()
-                _addEventState.value = _addEventState.value.copy(isLoading = true)
+                _addEventState.value = _addEventState.value.copy(
+                    isLoading = true,
+                    error = null
+                )
 
                 Log.d("AddEventViewModel", "Getting current user")
                 val currentUser = repository.getCurrentUser()
@@ -165,32 +167,16 @@ class AddEventViewModel(
     private fun validateInput(): Boolean {
         Log.d("AddEventViewModel", "Validating input")
         val state = _addEventState.value
-        val errors = mutableListOf<String>()
-
-        if (state.title.isBlank()) {
-            errors.add("Title is required")
-        }
-        if (state.date.isBlank()) {
-            errors.add("Date is required")
-        } else {
-            try {
-                val dateFormat = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
-                val eventDate = dateFormat.parse(state.date)
-                if (eventDate == null || eventDate.before(Date())) {
-                    errors.add("Please select a future date")
-                }
-            } catch (e: Exception) {
-                Log.e("AddEventViewModel", "Date parsing error", e)
-                errors.add("Invalid date format. Use DD/MM/YYYY")
-            }
-        }
-        if (state.recipient.isBlank()) {
-            errors.add("Recipient is required")
-        }
-        if (state.eventType.isBlank()) {
-            errors.add("Event type is required")
-        }
-
+        
+        val event = EventData(
+            title = state.title,
+            date = state.date,
+            recipient = state.recipient,
+            eventType = state.eventType,
+            userId = repository.getCurrentUser()?.uid ?: ""
+        )
+        
+        val errors = EventData.validate(event)
         if (errors.isNotEmpty()) {
             val errorMessage = errors.joinToString("\n")
             Log.e("AddEventViewModel", "Validation errors: $errorMessage")

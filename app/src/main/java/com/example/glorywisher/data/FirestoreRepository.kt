@@ -3,6 +3,7 @@ package com.example.glorywisher.data
 import android.util.Log
 import android.widget.Toast
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseAuthException
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
@@ -11,8 +12,6 @@ import com.google.firebase.firestore.Query
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.tasks.await
 import java.io.IOException
-import java.text.SimpleDateFormat
-import java.util.*
 
 data class PaginatedResult<T>(
     val events: List<T>,
@@ -51,60 +50,14 @@ class FirestoreRepository(private val context: android.content.Context) {
     }
 
     private fun validateEvent(event: EventData): Boolean {
-        return when {
-            event.title.isBlank() -> {
-                Log.e("Firestore", "Event validation failed: Title is empty")
-                Toast.makeText(context, "Event title cannot be empty", Toast.LENGTH_LONG).show()
-                false
-            }
-            event.date.isBlank() -> {
-                Log.e("Firestore", "Event validation failed: Date is empty")
-                Toast.makeText(context, "Event date cannot be empty", Toast.LENGTH_LONG).show()
-                false
-            }
-            event.recipient.isBlank() -> {
-                Log.e("Firestore", "Event validation failed: Recipient is empty")
-                Toast.makeText(context, "Recipient name cannot be empty", Toast.LENGTH_LONG).show()
-                false
-            }
-            event.eventType.isBlank() -> {
-                Log.e("Firestore", "Event validation failed: Event type is empty")
-                Toast.makeText(context, "Event type cannot be empty", Toast.LENGTH_LONG).show()
-                false
-            }
-            event.userId.isBlank() -> {
-                Log.e("Firestore", "Event validation failed: User ID is empty")
-                Toast.makeText(context, "User ID is required", Toast.LENGTH_LONG).show()
-                false
-            }
-            event.title.length > 100 -> {
-                Log.e("Firestore", "Event validation failed: Title too long")
-                Toast.makeText(context, "Title must be less than 100 characters", Toast.LENGTH_LONG).show()
-                false
-            }
-            event.recipient.length > 100 -> {
-                Log.e("Firestore", "Event validation failed: Recipient name too long")
-                Toast.makeText(context, "Recipient name must be less than 100 characters", Toast.LENGTH_LONG).show()
-                false
-            }
-            !isValidDate(event.date) -> {
-                Log.e("Firestore", "Event validation failed: Invalid date format")
-                Toast.makeText(context, "Invalid date format", Toast.LENGTH_LONG).show()
-                false
-            }
-            else -> true
+        val errors = EventData.validate(event)
+        if (errors.isNotEmpty()) {
+            val errorMessage = errors.joinToString("\n")
+            Log.e("Firestore", "Event validation failed: $errorMessage")
+            Toast.makeText(context, errorMessage, Toast.LENGTH_LONG).show()
+            return false
         }
-    }
-
-    private fun isValidDate(date: String): Boolean {
-        return try {
-            val formatter = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-            formatter.isLenient = false
-            formatter.parse(date)
-            true
-        } catch (e: Exception) {
-            false
-        }
+        return true
     }
 
     private fun validateUserAccess(userId: String) {
@@ -235,9 +188,23 @@ class FirestoreRepository(private val context: android.content.Context) {
 
     suspend fun signIn(email: String, password: String): FirebaseUser {
         return try {
+            // Validate input
+            if (email.isBlank() || password.isBlank()) {
+                throw IllegalArgumentException("Email and password cannot be empty")
+            }
+
+            // Attempt sign in
             val result = auth.signInWithEmailAndPassword(email, password).await()
             val user = result.user
             if (user != null) {
+                // Verify user profile exists
+                val userDoc = db.collection("users").document(user.uid).get().await()
+                if (!userDoc.exists()) {
+                    // If profile doesn't exist, sign out and throw error
+                    auth.signOut()
+                    throw Exception("User profile not found. Please sign up again.")
+                }
+                
                 Log.d("FirebaseAuth", "Login success: ${user.email}")
                 user
             } else {
@@ -247,17 +214,44 @@ class FirestoreRepository(private val context: android.content.Context) {
                 throw Exception(error)
             }
         } catch (e: Exception) {
+            val errorMessage = when (e) {
+                is FirebaseAuthException -> {
+                    when (e.errorCode) {
+                        "ERROR_INVALID_EMAIL" -> "Invalid email format"
+                        "ERROR_WRONG_PASSWORD" -> "Incorrect password"
+                        "ERROR_USER_NOT_FOUND" -> "No account found with this email"
+                        "ERROR_USER_DISABLED" -> "This account has been disabled"
+                        "ERROR_TOO_MANY_REQUESTS" -> "Too many attempts. Please try again later"
+                        else -> "Login failed: ${e.message}"
+                    }
+                }
+                is IllegalArgumentException -> e.message ?: "Invalid input"
+                else -> "Login failed: ${e.message}"
+            }
             Log.e("FirebaseAuth", "Login failed", e)
-            Toast.makeText(context, "Login error: ${e.message}", Toast.LENGTH_LONG).show()
-            throw e
+            Toast.makeText(context, errorMessage, Toast.LENGTH_LONG).show()
+            throw Exception(errorMessage)
         }
     }
 
     suspend fun signUp(email: String, password: String, name: String): FirebaseUser {
         return try {
+            // Create user with email and password
             val result = auth.createUserWithEmailAndPassword(email, password).await()
             val user = result.user
             if (user != null) {
+                // Create user profile in Firestore
+                val userProfile = hashMapOf(
+                    "name" to name,
+                    "email" to email,
+                    "createdAt" to com.google.firebase.Timestamp.now()
+                )
+                
+                db.collection("users")
+                    .document(user.uid)
+                    .set(userProfile)
+                    .await()
+                
                 Log.d("FirebaseAuth", "Registration success: ${user.email}")
                 user
             } else {
@@ -267,9 +261,20 @@ class FirestoreRepository(private val context: android.content.Context) {
                 throw Exception(error)
             }
         } catch (e: Exception) {
+            val errorMessage = when (e) {
+                is FirebaseAuthException -> {
+                    when (e.errorCode) {
+                        "ERROR_EMAIL_ALREADY_IN_USE" -> "This email is already registered"
+                        "ERROR_INVALID_EMAIL" -> "Invalid email format"
+                        "ERROR_WEAK_PASSWORD" -> "Password should be at least 6 characters"
+                        else -> "Registration failed: ${e.message}"
+                    }
+                }
+                else -> "Registration failed: ${e.message}"
+            }
             Log.e("FirebaseAuth", "Registration failed", e)
-            Toast.makeText(context, "Registration error: ${e.message}", Toast.LENGTH_LONG).show()
-            throw e
+            Toast.makeText(context, errorMessage, Toast.LENGTH_LONG).show()
+            throw Exception(errorMessage)
         }
     }
 

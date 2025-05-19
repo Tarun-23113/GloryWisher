@@ -5,6 +5,7 @@ import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -13,24 +14,26 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import com.example.glorywisher.data.EventData
 import com.example.glorywisher.ui.viewmodels.AddEventViewModel
 import com.example.glorywisher.ui.viewmodels.ViewModelFactory
+import com.example.glorywisher.ui.components.DatePickerDialog
+import com.example.glorywisher.ui.components.DatePicker
+import com.example.glorywisher.ui.components.rememberDatePickerState
+import java.util.Date
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddEventScreen(
     navController: NavController,
     eventId: String? = null,
-    title: String? = null,
-    date: String? = null,
-    recipient: String? = null,
-    eventType: String? = null,
     viewModel: AddEventViewModel = viewModel(
         factory = ViewModelFactory.create(LocalContext.current)
     )
 ) {
     val addEventState by viewModel.addEventState.collectAsState()
     val context = LocalContext.current
+    var showDatePicker by remember { mutableStateOf(false) }
 
     Log.d("AddEventScreen", "Initializing screen with eventId: $eventId")
 
@@ -100,16 +103,19 @@ fun AddEventScreen(
                     .padding(bottom = 16.dp)
             )
 
-            TextField(
+            OutlinedTextField(
                 value = addEventState.date,
-                onValueChange = { 
-                    Log.d("AddEventScreen", "Date changed: $it")
-                    viewModel.updateDate(it)
-                },
+                onValueChange = { },
                 label = { Text("Date (DD/MM/YYYY)") },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 16.dp)
+                    .padding(bottom = 16.dp),
+                readOnly = true,
+                trailingIcon = {
+                    IconButton(onClick = { showDatePicker = true }) {
+                        Icon(Icons.Default.DateRange, contentDescription = "Select Date")
+                    }
+                }
             )
 
             TextField(
@@ -170,6 +176,33 @@ fun AddEventScreen(
             ) {
                 Text(if (eventId == null) "Add Event" else "Update Event")
             }
+        }
+    }
+
+    if (showDatePicker) {
+        val datePickerState = rememberDatePickerState()
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        datePickerState.selectedDateMillis?.let { millis ->
+                            val date = Date(millis)
+                            viewModel.updateDate(EventData.formatDate(date))
+                        }
+                        showDatePicker = false
+                    }
+                ) {
+                    Text("OK")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) {
+                    Text("Cancel")
+                }
+            }
+        ) {
+            DatePicker(state = datePickerState)
         }
     }
 } 

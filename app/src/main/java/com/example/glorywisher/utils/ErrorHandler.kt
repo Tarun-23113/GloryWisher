@@ -1,6 +1,5 @@
 package com.example.glorywisher.utils
 
-import com.google.firebase.FirebaseException
 import com.google.firebase.auth.FirebaseAuthException
 import com.google.firebase.firestore.FirebaseFirestoreException
 import java.io.IOException
@@ -43,6 +42,11 @@ object ErrorHandler {
             "ERROR_WEAK_PASSWORD" -> AppError.ValidationError("Password is too weak")
             "ERROR_USER_DISABLED" -> AppError.AuthError("Account has been disabled")
             "ERROR_TOO_MANY_REQUESTS" -> AppError.AuthError("Too many attempts. Please try again later")
+            "ERROR_NETWORK_REQUEST_FAILED" -> AppError.NetworkError("Network connection failed")
+            "ERROR_OPERATION_NOT_ALLOWED" -> AppError.AuthError("Operation not allowed")
+            "ERROR_INVALID_CREDENTIAL" -> AppError.AuthError("Invalid credentials")
+            "ERROR_ACCOUNT_EXISTS_WITH_DIFFERENT_CREDENTIAL" -> 
+                AppError.AuthError("Account exists with different sign-in method")
             else -> AppError.AuthError(error.message ?: "Authentication failed")
         }
     }
@@ -58,7 +62,7 @@ object ErrorHandler {
             FirebaseFirestoreException.Code.RESOURCE_EXHAUSTED -> 
                 AppError.DatabaseError("Database quota exceeded")
             FirebaseFirestoreException.Code.FAILED_PRECONDITION -> 
-                AppError.DatabaseError("Operation cannot be executed in the current state")
+                AppError.DatabaseError("Operation cannot be executed in the current system state")
             FirebaseFirestoreException.Code.ABORTED -> 
                 AppError.DatabaseError("Operation was aborted")
             FirebaseFirestoreException.Code.OUT_OF_RANGE -> 

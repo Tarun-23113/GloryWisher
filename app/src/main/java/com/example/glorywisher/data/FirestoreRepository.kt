@@ -5,7 +5,16 @@ import android.widget.Toast
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.Query
 import kotlinx.coroutines.tasks.await
+import java.text.SimpleDateFormat
+import java.util.*
+
+data class PaginatedResult<T>(
+    val events: List<T>,
+    val hasMore: Boolean,
+    val lastDocumentId: String?
+)
 
 class FirestoreRepository(private val context: android.content.Context) {
     private val db = FirebaseFirestore.getInstance()
@@ -39,12 +48,46 @@ class FirestoreRepository(private val context: android.content.Context) {
                 Toast.makeText(context, "User ID is required", Toast.LENGTH_LONG).show()
                 false
             }
+            event.title.length > 100 -> {
+                Log.e("Firestore", "Event validation failed: Title too long")
+                Toast.makeText(context, "Title must be less than 100 characters", Toast.LENGTH_LONG).show()
+                false
+            }
+            event.recipient.length > 100 -> {
+                Log.e("Firestore", "Event validation failed: Recipient name too long")
+                Toast.makeText(context, "Recipient name must be less than 100 characters", Toast.LENGTH_LONG).show()
+                false
+            }
+            !isValidDate(event.date) -> {
+                Log.e("Firestore", "Event validation failed: Invalid date format")
+                Toast.makeText(context, "Invalid date format", Toast.LENGTH_LONG).show()
+                false
+            }
             else -> true
+        }
+    }
+
+    private fun isValidDate(date: String): Boolean {
+        return try {
+            val formatter = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+            formatter.isLenient = false
+            formatter.parse(date)
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    private fun validateUserAccess(userId: String) {
+        val currentUser = auth.currentUser
+        if (currentUser == null || currentUser.uid != userId) {
+            throw SecurityException("Unauthorized access")
         }
     }
 
     suspend fun addEvent(event: EventData) {
         try {
+            validateUserAccess(event.userId)
             if (!validateEvent(event)) {
                 throw IllegalArgumentException("Invalid event data")
             }
@@ -59,13 +102,35 @@ class FirestoreRepository(private val context: android.content.Context) {
         }
     }
 
-    suspend fun getEvents(userId: String): List<EventData> {
+    suspend fun getEvents(
+        userId: String,
+        lastDocumentId: String? = null,
+        pageSize: Int = 20
+    ): PaginatedResult<EventData> {
         return try {
+            validateUserAccess(userId)
             Log.d("Firestore", "Fetching events for user: $userId")
-            val snapshot = eventsCollection.whereEqualTo("userId", userId).get().await()
+            
+            var query = eventsCollection
+                .whereEqualTo("userId", userId)
+                .orderBy("date", Query.Direction.DESCENDING)
+                .limit(pageSize.toLong())
+
+            if (lastDocumentId != null) {
+                val lastDocument = eventsCollection.document(lastDocumentId).get().await()
+                query = query.startAfter(lastDocument)
+            }
+
+            val snapshot = query.get().await()
             val events = snapshot.documents.mapNotNull { it.toObject(EventData::class.java) }
+            
             Log.d("Firestore", "Successfully fetched ${events.size} events")
-            events
+            
+            PaginatedResult(
+                events = events,
+                hasMore = events.size == pageSize,
+                lastDocumentId = if (events.isNotEmpty()) snapshot.documents.last().id else null
+            )
         } catch (e: Exception) {
             Log.e("Firestore", "Failed to fetch events", e)
             Toast.makeText(context, "Error fetching events: ${e.message}", Toast.LENGTH_LONG).show()
@@ -75,6 +140,7 @@ class FirestoreRepository(private val context: android.content.Context) {
 
     suspend fun updateEvent(event: EventData) {
         try {
+            validateUserAccess(event.userId)
             if (!validateEvent(event)) {
                 throw IllegalArgumentException("Invalid event data")
             }
@@ -91,6 +157,9 @@ class FirestoreRepository(private val context: android.content.Context) {
 
     suspend fun deleteEvent(id: String) {
         try {
+            val event = getEvent(id) ?: throw IllegalArgumentException("Event not found")
+            validateUserAccess(event.userId)
+
             Log.d("Firestore", "Deleting event: $id")
             eventsCollection.document(id).delete().await()
             Log.d("Firestore", "Event deleted successfully")

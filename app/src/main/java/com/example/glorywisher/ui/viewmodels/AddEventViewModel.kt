@@ -1,7 +1,6 @@
 package com.example.glorywisher.ui.viewmodels
 
 import android.util.Log
-import android.widget.Toast
 import androidx.lifecycle.viewModelScope
 import com.example.glorywisher.data.EventData
 import com.example.glorywisher.data.FirestoreRepository

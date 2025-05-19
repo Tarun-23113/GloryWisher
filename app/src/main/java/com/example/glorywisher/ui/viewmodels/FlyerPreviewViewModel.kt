@@ -17,6 +17,7 @@ import kotlinx.coroutines.launch
 import java.io.File
 import java.io.FileOutputStream
 import android.util.Log
+import java.lang.ref.WeakReference
 
 data class FlyerPreviewState(
     val message: String = "",
@@ -34,7 +35,7 @@ class FlyerPreviewViewModel(
 ) : BaseViewModel<Uri>() {
     private val _flyerState = MutableStateFlow(FlyerPreviewState())
     val flyerState: StateFlow<FlyerPreviewState> = _flyerState.asStateFlow()
-    private var currentView: View? = null
+    private var currentViewRef: WeakReference<View>? = null
 
     fun loadEventData(eventId: String) {
         viewModelScope.launch {
@@ -93,7 +94,21 @@ class FlyerPreviewViewModel(
     }
 
     fun setView(view: View) {
-        currentView = view
+        currentViewRef = WeakReference(view)
+    }
+
+    private fun getCurrentView(): View? {
+        return currentViewRef?.get()
+    }
+
+    fun clearView() {
+        currentViewRef?.clear()
+        currentViewRef = null
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        clearView()
     }
 
     fun generateFlyerImage(context: Context) {
@@ -102,7 +117,7 @@ class FlyerPreviewViewModel(
                 setLoading()
                 _flyerState.value = _flyerState.value.copy(isLoading = true)
 
-                val view = currentView ?: throw AppError.ValidationError("View not initialized")
+                val view = getCurrentView() ?: throw AppError.ValidationError("View not initialized")
                 if (view.width <= 0 || view.height <= 0) {
                     throw AppError.ValidationError("Invalid view dimensions")
                 }
@@ -189,7 +204,7 @@ class FlyerPreviewViewModel(
                 setLoading()
                 _flyerState.value = _flyerState.value.copy(isLoading = true)
 
-                val view = currentView ?: throw AppError.ValidationError("View not initialized")
+                val view = getCurrentView() ?: throw AppError.ValidationError("View not initialized")
                 val shareUri = _flyerState.value.shareUri
                     ?: throw AppError.ValidationError("No flyer image available to save")
 

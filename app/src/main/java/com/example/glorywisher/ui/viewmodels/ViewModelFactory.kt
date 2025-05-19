@@ -17,6 +17,8 @@ class ViewModelFactory(
                 EventListViewModel(repository) as T
             modelClass.isAssignableFrom(AddEventViewModel::class.java) ->
                 AddEventViewModel(repository) as T
+            modelClass.isAssignableFrom(FlyerPreviewViewModel::class.java) ->
+                FlyerPreviewViewModel(repository) as T
             else -> throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
         }
     }

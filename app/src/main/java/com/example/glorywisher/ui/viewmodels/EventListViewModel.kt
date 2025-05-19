@@ -3,6 +3,7 @@ package com.example.glorywisher.ui.viewmodels
 import androidx.lifecycle.viewModelScope
 import com.example.glorywisher.data.EventData
 import com.example.glorywisher.data.FirestoreRepository
+import com.example.glorywisher.data.PaginatedResult
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -12,7 +13,9 @@ data class EventListState(
     val events: List<EventData> = emptyList(),
     val isLoading: Boolean = false,
     val error: String? = null,
-    val searchQuery: String = ""
+    val searchQuery: String = "",
+    val hasMoreEvents: Boolean = true,
+    val lastDocumentId: String? = null
 )
 
 class EventListViewModel(
@@ -20,25 +23,41 @@ class EventListViewModel(
 ) : BaseViewModel<List<EventData>>() {
     private val _eventListState = MutableStateFlow(EventListState())
     val eventListState: StateFlow<EventListState> = _eventListState.asStateFlow()
+    private val PAGE_SIZE = 20
 
     init {
         loadEvents()
     }
 
-    fun loadEvents() {
+    fun loadEvents(loadMore: Boolean = false) {
         viewModelScope.launch {
             try {
-                setLoading()
-                _eventListState.value = _eventListState.value.copy(isLoading = true)
+                if (!loadMore) {
+                    setLoading()
+                    _eventListState.value = _eventListState.value.copy(isLoading = true)
+                }
                 
                 val currentUser = repository.getCurrentUser()
                 val userId = currentUser?.uid ?: throw Exception("User not authenticated")
                 
-                val events = repository.getEvents(userId)
-                setSuccess(events)
+                val result = repository.getEvents(
+                    userId = userId,
+                    lastDocumentId = if (loadMore) _eventListState.value.lastDocumentId else null,
+                    pageSize = PAGE_SIZE
+                )
+                
+                val newEvents = if (loadMore) {
+                    _eventListState.value.events + result.events
+                } else {
+                    result.events
+                }
+                
+                setSuccess(newEvents)
                 _eventListState.value = _eventListState.value.copy(
-                    events = events,
-                    isLoading = false
+                    events = newEvents,
+                    isLoading = false,
+                    hasMoreEvents = result.hasMore,
+                    lastDocumentId = result.lastDocumentId
                 )
             } catch (e: Exception) {
                 setError(e.message ?: "Failed to load events")
@@ -48,6 +67,29 @@ class EventListViewModel(
                 )
             }
         }
+    }
+
+    fun loadMoreEvents() {
+        if (!_eventListState.value.isLoading && _eventListState.value.hasMoreEvents) {
+            loadEvents(loadMore = true)
+        }
+    }
+
+    fun refreshEvents() {
+        _eventListState.value = _eventListState.value.copy(
+            lastDocumentId = null,
+            hasMoreEvents = true
+        )
+        loadEvents()
+    }
+
+    fun updateSearchQuery(query: String) {
+        _eventListState.value = _eventListState.value.copy(
+            searchQuery = query,
+            lastDocumentId = null,
+            hasMoreEvents = true
+        )
+        filterEvents(query)
     }
 
     fun deleteEvent(eventId: String) {
@@ -62,32 +104,38 @@ class EventListViewModel(
         }
     }
 
-    fun updateSearchQuery(query: String) {
-        _eventListState.value = _eventListState.value.copy(searchQuery = query)
-        filterEvents(query)
-    }
-
     private fun filterEvents(query: String) {
         viewModelScope.launch {
             try {
                 setLoading()
+                _eventListState.value = _eventListState.value.copy(isLoading = true)
+                
                 val currentUser = repository.getCurrentUser()
                 val userId = currentUser?.uid ?: throw Exception("User not authenticated")
                 
-                val allEvents = repository.getEvents(userId)
+                // Get all events for the user
+                val result = repository.getEvents(
+                    userId = userId,
+                    pageSize = Int.MAX_VALUE // Get all events for filtering
+                )
+                
+                // Apply search filter
                 val filteredEvents = if (query.isEmpty()) {
-                    allEvents
+                    result.events
                 } else {
-                    allEvents.filter { event ->
+                    result.events.filter { event ->
                         event.title.contains(query, ignoreCase = true) ||
                         event.recipient.contains(query, ignoreCase = true) ||
                         event.eventType.contains(query, ignoreCase = true)
                     }
                 }
+                
                 setSuccess(filteredEvents)
                 _eventListState.value = _eventListState.value.copy(
                     events = filteredEvents,
-                    isLoading = false
+                    isLoading = false,
+                    hasMoreEvents = false, // No pagination when filtering
+                    lastDocumentId = null
                 )
             } catch (e: Exception) {
                 setError(e.message ?: "Failed to filter events")

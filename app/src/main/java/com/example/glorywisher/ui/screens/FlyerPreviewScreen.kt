@@ -129,6 +129,15 @@ fun FlyerPreviewScreen(
     val context = LocalContext.current
     val flyerState by viewModel.flyerState.collectAsState()
     var showErrorDialog by remember { mutableStateOf(false) }
+    var showSuccessDialog by remember { mutableStateOf(false) }
+    var successMessage by remember { mutableStateOf("") }
+
+    // Handle configuration changes
+    DisposableEffect(Unit) {
+        onDispose {
+            viewModel.clearView()
+        }
+    }
 
     // Load event data if eventId is provided
     LaunchedEffect(eventId) {
@@ -165,7 +174,15 @@ fun FlyerPreviewScreen(
     LaunchedEffect(flyerState.error) {
         flyerState.error?.let { error ->
             Log.e("FlyerPreviewScreen", "Error: $error")
-            Toast.makeText(context, error, Toast.LENGTH_LONG).show()
+            showErrorDialog = true
+        }
+    }
+
+    // Handle success states
+    LaunchedEffect(flyerState.shareUri) {
+        flyerState.shareUri?.let {
+            successMessage = "Flyer generated successfully"
+            showSuccessDialog = true
         }
     }
 
@@ -231,7 +248,8 @@ fun FlyerPreviewScreen(
                             onValueChange = { viewModel.updateMessage(it) },
                             label = { Text("Message") },
                             modifier = Modifier.fillMaxWidth(),
-                            enabled = !flyerState.isLoading
+                            enabled = !flyerState.isLoading,
+                            maxLines = 5
                         )
                         Spacer(modifier = Modifier.height(8.dp))
 
@@ -271,17 +289,32 @@ fun FlyerPreviewScreen(
                 }
             }
 
-            // Error Snackbar
-            flyerState.error?.let { error ->
-                if (!error.contains("Permission") && !error.contains("Storage")) {
-                    Snackbar(
-                        modifier = Modifier
-                            .padding(16.dp)
-                            .align(Alignment.BottomCenter)
-                    ) {
-                        Text(error)
+            // Error Dialog
+            if (showErrorDialog) {
+                AlertDialog(
+                    onDismissRequest = { showErrorDialog = false },
+                    title = { Text("Error") },
+                    text = { Text(flyerState.error ?: "An unknown error occurred") },
+                    confirmButton = {
+                        TextButton(onClick = { showErrorDialog = false }) {
+                            Text("OK")
+                        }
                     }
-                }
+                )
+            }
+
+            // Success Dialog
+            if (showSuccessDialog) {
+                AlertDialog(
+                    onDismissRequest = { showSuccessDialog = false },
+                    title = { Text("Success") },
+                    text = { Text(successMessage) },
+                    confirmButton = {
+                        TextButton(onClick = { showSuccessDialog = false }) {
+                            Text("OK")
+                        }
+                    }
+                )
             }
         }
     }
